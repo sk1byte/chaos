@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PURE DOM MELTDOWN</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #050505;
+            font-family: 'Courier New', monospace;
+            color: #00ffcc;
+        }
+        #viewport {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        /* Heavy retro visual filter */
+        #crt {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.4) 50%);
+            background-size: 100% 3px;
+            z-index: 999;
+            pointer-events: none;
+        }
+        .matrix-box {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 1px solid #00ffcc;
+            background: rgba(0, 255, 204, 0.1);
+            font-size: 10px;
+            text-align: center;
+            line-height: 20px;
+            will-change: transform; /* Force browser to create separate compositor layers */
+        }
+        #dashboard {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.9);
+            border: 2px solid #00ffcc;
+            padding: 20px;
+            z-index: 1000;
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.5);
+            width: 300px;
+        }
+        button {
+            background: #00ffcc;
+            color: #000;
+            border: none;
+            padding: 12px;
+            width: 100%;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 15px;
+            font-family: monospace;
+            letter-spacing: 1px;
+        }
+        button:hover {
+            background: #fff;
+            box-shadow: 0 0 15px #fff;
+        }
+        .stat {
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="crt"></div>
+    <div id="viewport"></div>
+
+    <div id="dashboard">
+        <h3 style="letter-spacing: 2px;">HARDWARE STRESS</h3>
+        <hr style="margin: 10px 0; border-color: #00ffcc;">
+        <div class="stat"><span>Active Cubes:</span> <span id="cube-count">0</span></div>
+        <div class="stat"><span>DOM Nodes:</span> <span id="node-count">0</span></div>
+        <div class="stat"><span>FPS:</span> <span id="fps-val">60</span></div>
+        <button id="panic-btn">ENGAGE DOOMSDAY</button>
+    </div>
+
+    <script>
+        const viewport = document.getElementById('viewport');
+        let elements = [];
+        let spawnRate = 5;
+        let maxElements = 1500;
+        let isPanic = false;
+
+        // FPS counter variables
+        let lastTime = performance.now();
+        let frames = 0;
+
+        // Custom pure-JS physics calculations
+        function createCube() {
+            if (elements.length >= maxElements) {
+                let old = elements.shift();
+                if (old && old.el) old.el.remove();
+            }
+
+            const el = document.createElement('div');
+            el.className = 'matrix-box';
+            el.innerText = Math.floor(Math.random() * 9);
+            viewport.appendChild(el);
+
+            // Seed unique mathematical properties for independent threads
+            elements.push({
+                el: el,
+                x: window.innerWidth / 2,
+                y: window.innerHeight / 2,
+                vx: (Math.random() - 0.5) * 14,
+                vy: (Math.random() - 0.5) * 14,
+                rot: Math.random() * 360,
+                vRot: (Math.random() - 0.5) * 10,
+                size: 10 + Math.random() * 30
+            });
+        }
+
+        function engineTick() {
+            // 1. Heavy DOM layout thrashing (Forcing structural layout recalculations continuously)
+            for (let i = 0; i < elements.length; i++) {
+                let p = elements[i];
+                
+                // Physics application
+                p.x += p.vx;
+                p.y += p.vy;
+                p.rot += p.vRot;
+                p.vy += 0.2; // Gravity simulation
+
+                // Boundary collision responses
+                if (p.x < 0 || p.x > window.innerWidth - p.size) p.vx *= -0.9;
+                if (p.y > window.innerHeight - p.size) {
+                    p.y = window.innerHeight - p.size;
+                    p.vy *= -0.85; // Bounciness
+                }
+
+                // Push styling mutations straight into the visual rendering pipeline
+                p.el.style.transform = `translate3d(${p.x}px, ${p.y}px, 0) rotate(${p.rot}deg) scale(${p.size / 20})`;
+                
+                if (isPanic) {
+                    // Force complete paint pipeline breakdown by flashing color allocations
+                    p.el.style.borderColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                    p.el.style.background = `rgba(${Math.random()*255}, ${Math.random()*255}, 0, 0.3)`;
+                }
+            }
+
+            // 2. Spawn generation
+            for (let i = 0; i < spawnRate; i++) {
+                createCube();
+            }
+
+            // 3. Performance diagnostics
+            frames++;
+            let now = performance.now();
+            if (now >= lastTime + 1000) {
+                let currentFps = Math.round((frames * 1000) / (now - lastTime));
+                document.getElementById('fps-val').innerText = currentFps;
+                document.getElementById('fps-val').style.color = currentFps < 25 ? '#ff3333' : '#00ffcc';
+                frames = 0;
+                lastTime = now;
+            }
+
+            document.getElementById('cube-count').innerText = elements.length;
+            document.getElementById('node-count').innerText = document.getElementsByTagName('*').length;
+
+            requestAnimationFrame(engineTick);
+        }
+
+        // Trigger Panic Mode
+        document.getElementById('panic-btn').addEventListener('click', () => {
+            isPanic = true;
+            spawnRate = 120; // 120 new DOM elements per animation frame
+            maxElements = 45000; // Drastically breach the browser layout threshold
+            
+            document.getElementById('dashboard').style.borderColor = '#ff3333';
+            document.getElementById('dashboard').style.boxShadow = '0 0 40px #ff3333';
+            document.getElementById('panic-btn').innerText = "CRITICAL MEMORY SPIKE";
+            document.getElementById('panic-btn').style.background = '#ff3333';
+
+            // Audio thread denial of service setup
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                setInterval(() => {
+                    // Create an endless array of un-garbage-collected raw sawtooth sounds
+                    let osc = audioCtx.createOscillator();
+                    let gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(30 + Math.random() * 120, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start();
+                    // Purposely never calling osc.stop() to lock up the browser's hardware audio mixer
+                }, 50);
+            } catch(e) {}
+        });
+
+        // Fire engine immediately
+        engineTick();
+    </script>
+</body>
+</html>
